@@ -1,6 +1,11 @@
+"""
+Original script from:
+ https://realpython.com/python-web-scraping-practical-introduction/
+
+Just playing around with asyncio.
+"""
 import asyncio
-from contextlib import closing
-from time import sleep, time
+from time import time
 
 from bs4 import BeautifulSoup
 from requests import get
@@ -14,10 +19,10 @@ def simple_get(url):
     text content, otherwise return None.
     """
     try:
-        with closing(get(url, stream=True)) as resp:
-            return resp.content if is_good_response(resp) else None
-    except RequestException as e:
-        log_error(f'Error during requests to {url}: {str(e)}')
+        resp = get(url, stream=True)
+        return resp.content if is_good_response(resp) else None
+    except RequestException as error:
+        log_error(f'Error during requests to {url}: {str(error)}')
         return None
 
 
@@ -31,12 +36,12 @@ def is_good_response(resp):
             and content_type.find('html') > -1)
 
 
-def log_error(e):
+def log_error(error):
     """
     It is always a good idea to log errors.
     This function just prints them, but you can make it do anything.
     """
-    print(e)
+    print(error)
 
 
 def get_names():
@@ -50,9 +55,9 @@ def get_names():
     if response:
         html = BeautifulSoup(response, 'html.parser')
         names = set()
-        for li in html.select('li'):
-            for name in li.text.split('\n'):
-                if len(name) > 0:
+        for tag in html.select('li'):
+            for name in tag.text.split('\n'):
+                if name:
                     names.add(name.strip())
         return list(names)
 
@@ -61,16 +66,19 @@ def get_names():
 
 
 async def get_hits(name):
+    """
+    Attempts to retrieve the mathematicians 'hits' based on their name.
+    Returns a tupe (hits, name)
+    """
     url = f'https://xtools.wmflabs.org/articleinfo/en.wikipedia.org/{name}'
     response = simple_get(url)
 
     if response:
         html = BeautifulSoup(response, 'html.parser')
 
-        hit_link = [a for a in html.select('a') 
-                    if a['href'].find('latest-60') > -1]
-        
-        if len(hit_link) > 0:
+        hit_link = [a for a in html.select('a') if a['href'].find('latest-60') > -1]
+
+        if hit_link:
             # strip commas
             link_text = hit_link[0].text.replace(',', '')
             try:
@@ -78,7 +86,7 @@ async def get_hits(name):
                 return int(link_text), name
             except ValueError:
                 log_error(f'Could not parse {link_text} as an "int".')
-    
+
     log_error(f'No pageviews found for {name}.')
     return -1, name
 
@@ -96,12 +104,15 @@ def show_results(tasks):
     print('\nThe most popular mathematicians are:\n')
     for mark, mathematician in top_marks:
         print(f'{mathematician} with {mark} page views')
-    
+
     no_results = len([res for res in results if res[0] == -1])
     print(f'\n{no_results} mathematicians on the list had no results')
 
 
 def main():
+    """
+    Main starting point
+    """
     start = time()
     print('Getting the list of names...')
     names = get_names()
